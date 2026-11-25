@@ -15,6 +15,9 @@ https://github.com/powerfullz/override-rules
 - threshold: 地区节点数量小于该值时不显示分组（默认 2）
 - regex: 使用正则过滤模式（include-all + filter）写入各地区代理组，而非直接枚举节点名称（默认 false）
 - adblock: 去广告规则（0=关闭，1=adrules.top，2=217heidai，3=AWAvenue，默认 3）
+- excludeproviders: 排除出地区分组的供应商（逗号分隔）
+- mwan: 启用多WAN
+- interfaces: 多WAN网卡列表
 
 源码位于 `src/`，入口为 `src/main.ts`。
 */
@@ -29,7 +32,6 @@ import type { ClashConfig } from "./types/clash";
 
 declare const $arguments: ScriptArgs;
 
-/** 读取脚本环境传入的参数；未检测到时返回空对象以使用默认值。 */
 function readRawArgs(): ScriptArgs {
     try {
         return $arguments;
@@ -38,19 +40,13 @@ function readRawArgs(): ScriptArgs {
     }
 }
 
-/**
- * 覆写脚本入口。
- *
- * 流程：解析参数 → 节点分类 → 构建候选列表 → 构建代理组 → 组装最终配置。
- * @param config - 上游订阅配置
- */
 function main(config: ClashConfig): ClashConfig {
     if (!Array.isArray(config.proxies)) {
         throw new Error("[powerfullz 的覆写脚本] 错误：Clash 配置中缺少有效的 proxies 字段");
     }
 
     const flags = buildFeatureFlags(readRawArgs());
-    const nodes = analyzeNodes(config.proxies, flags.countryThreshold);
+    const nodes = analyzeNodes(config.proxies, flags.countryThreshold, flags.excludeProviders);
     const lists = buildBaseLists({
         landing: nodes.landing,
         landingNodes: nodes.landingNodes,
@@ -59,6 +55,7 @@ function main(config: ClashConfig): ClashConfig {
         tailscaleNodes: nodes.tailscaleNodes,
         regexFilter: flags.regexFilter,
         regions: nodes.regionLayout,
+        providerInfo: nodes.providerInfo,
     });
     const proxyGroups = buildProxyGroups({ flags, nodes, lists });
 

@@ -119,6 +119,14 @@ export interface BuildBaseListsInput {
     tailscaleNodes: ProxyNode[];
     regexFilter: boolean;
     regions: RegionLayout;
+    /** 供应商分组信息，用于在基础列表中前置供应商组 */
+    providerInfo?: ProviderInfo[];
+}
+
+/** 供应商信息 */
+export interface ProviderInfo {
+    provider: string;
+    nodes: ProxyNode[];
 }
 
 /** 节点经过多维度分类后的结果，是配置构建阶段的唯一节点数据来源。 */
@@ -145,6 +153,8 @@ export interface NodeAnalysis {
     tailscaleNodes: ProxyNode[];
     /** 是否存在 Tailscale 节点。 */
     hasTailscale: boolean;
+    /** 供应商分组信息 */
+    providerInfo: ProviderInfo[];
 }
 
 /** 代理组构建阶段共享的上下文。 */

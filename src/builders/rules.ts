@@ -18,9 +18,6 @@ export interface BuildRulesInput {
 
 /**
  * 构建最终的规则列表。
- * @param input.quicEnabled - 是否允许 QUIC（未启用时插入 UDP:443 拦截规则）
- * @param input.hasTailscale - 是否存在 Tailscale 节点（决定是否生成 Tailscale 分流规则）
- * @param input.adblockSource - 去广告规则来源（0=关闭，1=adrules.top，2=217heidai，3=AWAvenue）
  */
 export function buildRules({
     quicEnabled,
@@ -32,6 +29,9 @@ export function buildRules({
         hasTailscale ? `IP-CIDR,100.64.0.0/10,${PROXY_GROUPS.TAILSCALE},no-resolve` : null,
         hasTailscale ? `IP-CIDR,fd7a:115c:a1e0::/48,${PROXY_GROUPS.TAILSCALE},no-resolve` : null,
         hasTailscale ? `DOMAIN-SUFFIX,ts.net,${PROXY_GROUPS.TAILSCALE}` : null,
+        `DST-PORT,22,${PROXY_GROUPS.SSH}`,
+        ruleSet("SSH", PROXY_GROUPS.SSH),
+        ruleSet("BtPtTracker", PROXY_GROUPS.BT_PT_TRACKER),
         `GEOIP,private,DIRECT,no-resolve`,
         adblockSource > 0 ? ruleSet("ADBlock", PROXY_GROUPS.AD_BLOCK) : null,
         adblockSource > 0 ? ruleSet("AdditionalFilter", PROXY_GROUPS.AD_BLOCK) : null,

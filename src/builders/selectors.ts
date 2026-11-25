@@ -175,30 +175,45 @@ export function buildBaseLists({
     tailscaleNodes,
     regexFilter,
     regions,
+    providerInfo = [],
 }: BuildBaseListsInput): BaseLists {
     const suffixedCountryNames = regions.groupedCountries.map(countryGroupName);
     const hasLowCost = lowCostNodes.length > 0 || regexFilter;
+    const providerNames = providerInfo.map((p) => providerGroupName(p.provider));
 
-    if (regions.mode === "flattened") {
-        return buildFlattenedBaseLists({
-            landing,
-            hasLowCost,
-            flattenedNodeSource: buildFlattenedNodeSource(
-                regions.flattenedNodes,
-                landingNodes,
-                tailscaleNodes,
-                regexFilter
-            ),
-            flattenedNodes: regions.flattenedNodes,
-        });
+    const base =
+        regions.mode === "flattened"
+            ? buildFlattenedBaseLists({
+                  landing,
+                  hasLowCost,
+                  flattenedNodeSource: buildFlattenedNodeSource(
+                      regions.flattenedNodes,
+                      landingNodes,
+                      tailscaleNodes,
+                      regexFilter
+                  ),
+                  flattenedNodes: regions.flattenedNodes,
+              })
+            : buildGroupedBaseLists({
+                  landing,
+                  regexFilter,
+                  hasLowCost,
+                  suffixedCountryNames,
+                  tailscaleNodes,
+                  nonLandingNodes,
+              });
+
+    // 在基础列表前置供应商组（与服务组增强逻辑保持一致）
+    if (providerNames.length > 0) {
+        const prepend = (list: ProxyGroupCandidate[]) => [
+            ...providerNames,
+            ...list.filter((c) => typeof c !== "string" || !providerNames.includes(c)),
+        ];
+        base.defaultSelector = prepend(base.defaultSelector);
+        base.defaultProxies = prepend(base.defaultProxies);
+        base.defaultProxiesDirect = prepend(base.defaultProxiesDirect);
+        base.defaultFallback = prepend(base.defaultFallback);
     }
 
-    return buildGroupedBaseLists({
-        landing,
-        regexFilter,
-        hasLowCost,
-        suffixedCountryNames,
-        tailscaleNodes,
-        nonLandingNodes,
-    });
+    return base;
 }

@@ -47,6 +47,7 @@ export const ICONS = {
     ehentai: `${SELF}/Ehentai.png`,
     pikpak: `${SELF}/PikPak.png`,
     sogouInput: `${SELF}/Sougou.png`,
+    ssh: `${QURE}/Server.png`,
     tailscale: `${SELF}/Tailscale.png`,
     adBlock: `${QURE}/AdBlack.png`,
     final: `${QURE}/Final.png`,

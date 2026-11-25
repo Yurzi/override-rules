@@ -15,6 +15,9 @@ export interface ScriptArgs {
     threshold?: string;
     tun?: string;
     adblock?: string;
+    excludeproviders?: string;
+    mwan?: string;
+    interfaces?: string;
 }
 
 /** 地区代理组类型：0=select（手动选择），1=url-test（自动测速），2=load-balance（负载均衡）。 */
@@ -35,4 +38,7 @@ export interface FeatureFlags {
     countryThreshold: number;
     tunEnabled: boolean;
     adblockSource: AdblockSource;
+    excludeProviders: string[];
+    multiWanEnabled: boolean;
+    interfaces: string[];
 }

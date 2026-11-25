@@ -24,4 +24,10 @@ export const ARG_DEFAULTS = {
     tunEnabled: false,
     /** 去广告规则来源：0=关闭，1=adrules.top，2=217heidai，3=AWAvenue。 */
     adblockSource: 3,
+    /** 要排除出地区分组的供应商关键词（默认空）。 */
+    excludeProviders: [] as string[],
+    /** 启用多 WAN 负载均衡。 */
+    multiWanEnabled: false,
+    /** 多 WAN 物理网卡名称列表。 */
+    interfaces: [] as string[],
 } as const;

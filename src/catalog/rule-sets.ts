@@ -97,6 +97,22 @@ export const ruleSets = {
         url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/gfw.txt",
         path: "./ruleset/GFWList.yaml",
     },
+    BtPtTracker: {
+        type: "http",
+        behavior: "classical",
+        format: "text",
+        interval: 86400,
+        url: "https://sub.yurzi.net/ruleset/BtPtTracker.list",
+        path: "./ruleset/BtPtTracker.list",
+    },
+    SSH: {
+        type: "http",
+        behavior: "classical",
+        format: "text",
+        interval: 86400,
+        url: "https://sub.yurzi.net/ruleset/SSH.list",
+        path: "./ruleset/SSH.list",
+    },
 } satisfies Record<string, RuleProvider>;
 
 /** `ADBlock` 的替代下载源（1=adrules.top，3=AWAvenue；2 使用 `ruleSets.ADBlock`）。 */

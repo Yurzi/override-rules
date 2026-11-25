@@ -1,7 +1,7 @@
 /**
  * 节点多维度分类。
  *
- * 将上游订阅的原始节点列表一次性归类为：落地/非落地、国家/地区、低倍率、Tailscale，
+ * 将上游订阅的原始节点列表一次性归类为：落地/非落地、国家/地区、低倍率、Tailscale、供应商，
  * 作为配置构建阶段唯一的数据来源。
  */
 
@@ -14,11 +14,11 @@ import type { NodeAnalysis, ProxyNode, RegionLayout } from "../types/proxy";
 /** 生成地区组所需的最少达标地区数；不足时展平到上层代理组。 */
 const MIN_REGION_GROUPS = 2;
 
+/** 供应商标签正则：匹配 [Supplier] 或 【Supplier】 */
+const PROVIDER_REGEX = /\[([^\]]+)\]|【([^】]+)】/g;
+
 /**
  * 按 `dialer-proxy` 字段将节点分为落地节点与非落地节点。
- *
- * 在 Clash 链式代理中，`dialer-proxy` 表示当前节点通过指定代理拨号，
- * 因此带 `dialer-proxy: "前置代理"` 的节点是落地节点（目标节点），其余为非落地节点。
  */
 function splitByLanding(nodes: ProxyNode[]): {
     landingNodes: ProxyNode[];
@@ -36,6 +36,46 @@ function splitByLanding(nodes: ProxyNode[]): {
     }
 
     return { landingNodes, nonLandingNodes };
+}
+
+/**
+ * 从节点名称中提取供应商信息。
+ * 返回 { provider: string; nodes: ProxyNode[] }[]
+ */
+export function collectProviders(nodes: ProxyNode[]): { provider: string; nodes: ProxyNode[] }[] {
+    const providerMap = new Map<string, ProxyNode[]>();
+
+    for (const node of nodes) {
+        const matches = [...node.name.matchAll(PROVIDER_REGEX)];
+        for (const match of matches) {
+            const provider = match[1] || match[2];
+            if (provider && !/^\d+(\.\d+)?[xX]?$/.test(provider)) {
+                if (!providerMap.has(provider)) {
+                    providerMap.set(provider, []);
+                }
+                providerMap.get(provider)!.push(node);
+                break;
+            }
+        }
+    }
+
+    return Array.from(providerMap.entries()).map(([provider, nodes]) => ({ provider, nodes }));
+}
+
+/**
+ * 根据 excludeProviders 过滤掉指定供应商的节点。
+ */
+function excludeProviders(nodes: ProxyNode[], excludeList: string[]): ProxyNode[] {
+    if (excludeList.length === 0) return nodes;
+    const excludeSet = new Set(excludeList);
+    return nodes.filter((node) => {
+        const matches = [...node.name.matchAll(PROVIDER_REGEX)];
+        for (const match of matches) {
+            const provider = match[1] || match[2];
+            if (provider && excludeSet.has(provider)) return false;
+        }
+        return true;
+    });
 }
 
 /**
@@ -85,19 +125,24 @@ function excludeTailscale(nodes: ProxyNode[]): ProxyNode[] {
  * 对节点列表执行全部分类。
  * @param nodes - 上游订阅的节点列表（`config.proxies`）
  * @param threshold - 地区节点数量的最小阈值
+ * @param excludeProviderList - 要排除出地区分组的供应商列表
  */
-export function analyzeNodes(nodes: ProxyNode[], threshold: number): NodeAnalysis {
-    // 上游配置未经校验；无名称或空名称的节点无法通过 Mihomo 启动检查，统一在此丢弃。
+export function analyzeNodes(
+    nodes: ProxyNode[],
+    threshold: number,
+    excludeProviderList: string[] = []
+): NodeAnalysis {
     const validNodes = nodes.filter(
         (node) => typeof node.name === "string" && node.name.length > 0
     );
     const { landingNodes, nonLandingNodes } = splitByLanding(validNodes);
-    // 只要出现落地节点就启用落地相关代理组；全落地时非落地候选自然为空。
     const landing = landingNodes.length > 0;
     const tailscaleNodes = collectTailscale(validNodes);
+    const providerInfo = collectProviders(validNodes);
 
-    // 链式代理激活时，国家/低倍率分类只扫描非落地节点；Tailscale 节点不参与常规分类。
-    const scopedNodes = excludeTailscale(landing ? nonLandingNodes : validNodes);
+    let scopedNodes = excludeTailscale(landing ? nonLandingNodes : validNodes);
+    scopedNodes = excludeProviders(scopedNodes, excludeProviderList);
+
     const countryNodes = collectCountries(scopedNodes);
     const countryNames = getActiveCountryNames(countryNodes, threshold);
     const lowCostNodes = collectLowCost(scopedNodes);
@@ -108,7 +153,10 @@ export function analyzeNodes(nodes: ProxyNode[], threshold: number): NodeAnalysi
             : {
                   mode: "flattened",
                   groupedCountries: [],
-                  flattenedNodes: excludeTailscale(nonLandingNodes),
+                  flattenedNodes: excludeProviders(
+                      excludeTailscale(nonLandingNodes),
+                      excludeProviderList
+                  ),
               };
 
     return {
@@ -123,5 +171,6 @@ export function analyzeNodes(nodes: ProxyNode[], threshold: number): NodeAnalysi
         lowCostNodes,
         tailscaleNodes,
         hasTailscale: tailscaleNodes.length > 0,
+        providerInfo,
     };
 }

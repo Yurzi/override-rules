@@ -39,6 +39,9 @@ export const PROXY_GROUPS = {
     PIKPAK: "PikPak网盘",
     SOGOU_INPUT: "搜狗输入法",
     AD_BLOCK: "广告拦截",
+    SSH: "SSH",
+    BT_PT_TRACKER: "BtPtTracker",
+    MULTI_WAN: "多WAN",
     GLOBAL: "GLOBAL",
     FINAL: "Final",
 } as const;
@@ -49,4 +52,9 @@ export const PROXY_GROUPS = {
  */
 export function countryGroupName(country: string): string {
     return `${country}${NODE_SUFFIX}`;
+}
+
+/** 生成供应商代理组名称，例如「⛅️ 私有」 */
+export function providerGroupName(provider: string): string {
+    return `☁️ ${provider}`;
 }

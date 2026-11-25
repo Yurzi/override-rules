@@ -1,14 +1,9 @@
 /**
- * 代理组组装：将前置组、服务组、尾部固定组、地区组按既定顺序拼接为完整的代理组列表。
- *
- * 各类代理组的定义分别位于：
- * - 服务组：`catalog/service-groups.ts`
- * - 地区元数据：`catalog/countries.ts`
- * - 构造工厂：`domain/proxy-group.ts`
+ * 代理组组装：将前置组、服务组、尾部固定组、地区组、供应商组、多WAN组按既定顺序拼接为完整的代理组列表。
  */
 
 import { countriesMeta } from "../catalog/countries";
-import { countryGroupName, PROXY_GROUPS } from "../catalog/group-names";
+import { countryGroupName, providerGroupName, PROXY_GROUPS } from "../catalog/group-names";
 import { ICONS } from "../catalog/icons";
 import { LOW_COST_NODE_MATCHER } from "../catalog/low-cost";
 import { serviceGroups } from "../catalog/service-groups";
@@ -23,10 +18,6 @@ import { isNotNull } from "../utils/primitives";
 import { buildNodeExcludeFilter, combineExcludeFilters } from "../utils/regex";
 import type { GroupBuildContext, ProxyGroup } from "../types/proxy";
 
-/**
- * 生成「手动选择」组：展平模式下「选择代理」已直接列出全部非落地节点，不再生成该组。
- * 分组模式保留该组：regex 模式交给内核动态填充，否则按上游顺序枚举。
- */
 function buildManualGroup(ctx: GroupBuildContext): ProxyGroup | null {
     if (ctx.nodes.regionLayout.mode !== "grouped") return null;
 
@@ -40,11 +31,43 @@ function buildManualGroup(ctx: GroupBuildContext): ProxyGroup | null {
     return selectGroup(PROXY_GROUPS.MANUAL, ICONS.manual, ctx.nodes.manualNames);
 }
 
-/** 顶层选择类代理组：选择代理、手动选择、以及链式代理相关组。 */
+function buildProviderGroups(ctx: GroupBuildContext): ProxyGroup[] {
+    return (ctx.nodes.providerInfo || []).map(({ provider, nodes }) => {
+        if (ctx.flags.regexFilter) {
+            const filter = `\\[${provider}\\]|【${provider}】`;
+            return selectGroup(providerGroupName(provider), ICONS.select, [
+                { "include-all": true, filter },
+            ]);
+        }
+        return selectGroup(
+            providerGroupName(provider),
+            ICONS.select,
+            nodes.map((n) => n.name)
+        );
+    });
+}
+
+function buildMultiWanGroup(ctx: GroupBuildContext): ProxyGroup | null {
+    if (!ctx.flags.multiWanEnabled || ctx.flags.interfaces.length === 0) return null;
+    const wanNames = ctx.flags.interfaces.map((iface) => `WAN-${iface}`);
+    return {
+        name: PROXY_GROUPS.MULTI_WAN,
+        type: "load-balance",
+        icon: ICONS.select,
+        url: "https://www.gstatic.com/generate_204",
+        interval: 300,
+        tolerance: 50,
+        strategy: "round-robin",
+        proxies: wanNames,
+    };
+}
+
 function buildFrontGroups(ctx: GroupBuildContext): Array<ProxyGroup | null> {
     return [
         selectGroup(PROXY_GROUPS.SELECT, ICONS.select, ctx.lists.defaultSelector),
         buildManualGroup(ctx),
+        ...buildProviderGroups(ctx),
+        buildMultiWanGroup(ctx),
         ctx.nodes.landing
             ? selectGroup(PROXY_GROUPS.FRONT_PROXY, ICONS.frontProxy, ctx.lists.frontProxySelector)
             : null,
@@ -58,14 +81,12 @@ function buildFrontGroups(ctx: GroupBuildContext): Array<ProxyGroup | null> {
     ];
 }
 
-/** 由声明式目录生成的服务代理组。 */
 function buildServiceGroups(ctx: GroupBuildContext): ProxyGroup[] {
     return serviceGroups.map((def) =>
         selectGroup(def.name, def.icon, def.proxies(ctx), def.includeAll && ctx.flags.regexFilter)
     );
 }
 
-/** 尾部固定代理组：Tailscale、广告拦截、Final、自动选择、故障转移。 */
 function buildTailGroups(ctx: GroupBuildContext): Array<ProxyGroup | null> {
     return [
         ctx.nodes.hasTailscale
@@ -90,7 +111,6 @@ function buildTailGroups(ctx: GroupBuildContext): Array<ProxyGroup | null> {
     ];
 }
 
-/** 低倍率组与各地区组。 */
 function buildRegionGroups(ctx: GroupBuildContext): Array<ProxyGroup | null> {
     const { flags, nodes } = ctx;
     const hasLowCost = nodes.lowCostNodes.length > 0 || flags.regexFilter;
@@ -136,11 +156,6 @@ function buildRegionGroups(ctx: GroupBuildContext): Array<ProxyGroup | null> {
     return [lowCostGroup, ...countryGroups];
 }
 
-/**
- * 组装完整的代理组列表。
- * @param ctx - 代理组构建上下文
- * @returns 代理组数组（不含 GLOBAL，GLOBAL 由 `builders/config.ts` 追加）
- */
 export function buildProxyGroups(ctx: GroupBuildContext): ProxyGroup[] {
     const groups: Array<ProxyGroup | null> = [
         ...buildFrontGroups(ctx),

@@ -36,6 +36,12 @@ function parseAdblockSource(args: ScriptArgs): AdblockSource {
     return raw === 0 || raw === 1 || raw === 2 || raw === 3 ? raw : ARG_DEFAULTS.adblockSource;
 }
 
+/** 解析逗号分隔的字符串为数组，过滤空值并去除空白。 */
+function parseStringList(raw: string | undefined): string[] {
+    if (!raw) return [];
+    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
 /**
  * 解析传入的脚本参数，并转换为内部使用的功能开关。
  * @param args - 从脚本环境（如 Substore）传入的原始参数对象
@@ -52,5 +58,8 @@ export function buildFeatureFlags(args: ScriptArgs): FeatureFlags {
         tunEnabled: parseBool(args.tun, ARG_DEFAULTS.tunEnabled),
         countryThreshold: parseNumber(args.threshold, ARG_DEFAULTS.countryThreshold),
         adblockSource: parseAdblockSource(args),
+        excludeProviders: parseStringList(args.excludeproviders),
+        multiWanEnabled: parseBool(args.mwan, ARG_DEFAULTS.multiWanEnabled),
+        interfaces: parseStringList(args.interfaces),
     };
 }

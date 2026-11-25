@@ -13,7 +13,7 @@ import { snifferConfig } from "./sniffer";
 import { buildTunConfig } from "./tun";
 import type { AdblockSource, FeatureFlags } from "../types/args";
 import type { ClashConfig } from "../types/clash";
-import type { NodeAnalysis, ProxyGroup } from "../types/proxy";
+import type { NodeAnalysis, ProxyGroup, ProxyNode } from "../types/proxy";
 
 /**
  * 追加 GLOBAL 代理组：其候选为它之前的所有代理组。
@@ -30,6 +30,16 @@ function appendGlobalGroup(groups: ProxyGroup[]): ProxyGroup[] {
     return [...groups, global];
 }
 
+/** 生成与 MULTI_WAN 组匹配的 WAN-xxx DIRECT 代理 */
+function buildWanProxies(flags: FeatureFlags): ProxyNode[] {
+    if (!flags.multiWanEnabled || flags.interfaces.length === 0) return [];
+    return flags.interfaces.map((iface) => ({
+        name: `WAN-${iface}`,
+        type: "direct",
+        "interface-name": iface,
+    }));
+}
+
 /** 组装最终配置所需的上下文数据。 */
 export interface AssembleConfigInput {
     flags: FeatureFlags;
@@ -39,11 +49,6 @@ export interface AssembleConfigInput {
 
 /**
  * 将各部分拼装为最终配置。
- *
- * 上游 `hosts` 始终保留；`full=true` 时追加完整内核参数；
- * DNS 会按字段规则继承上游配置。
- * @param config - 上游订阅配置
- * @param input - 组装上下文
  */
 export function assembleConfig(
     config: ClashConfig,
@@ -60,8 +65,11 @@ export function assembleConfig(
     };
     const adblockProvider = providersBySource[flags.adblockSource];
 
+    const wanProxies = buildWanProxies(flags);
+    const allProxies = [...nodes.allNodes, ...wanProxies];
+
     return {
-        proxies: nodes.allNodes,
+        proxies: allProxies,
         ...(config.hosts !== undefined && { hosts: config.hosts }),
         ...(flags.fullConfig && buildFullConfig(flags)),
         "proxy-groups": appendGlobalGroup(proxyGroups),
